@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "specternet"
+version = "1.0.0"
+authors = [
+  { name="Dreadonyx", email="dreadonyx@example.com" },
+]
+description = "A full-featured network sniffer and analysis suite with a PyQt6 GUI."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: System :: Networking :: Monitoring",
+]
+dependencies = [
+    "PyQt6",
+    "scapy",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Dreadonyx/SpecterNet"
+"Bug Tracker" = "https://github.com/Dreadonyx/SpecterNet/issues"
+
+[project.scripts]
+specternet = "main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "gui*", "utils*"]
