@@ -83,7 +83,8 @@ class PortScanner:
             banner = s.recv(256).decode('utf-8', errors='ignore').strip()
             s.close()
             return banner[:30] if banner else "unknown"
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Banner grab failed for {target}:{port}: {e}")
             return "unknown"
 
     def stop(self):

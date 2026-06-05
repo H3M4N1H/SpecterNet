@@ -69,6 +69,7 @@ class MainWindow(QMainWindow):
         self.stats = TrafficStats()
         self.worker = None
         self.packet_count = 0
+        self.paused = False
 
         self._apply_theme()
         self._build_ui()
@@ -84,52 +85,72 @@ class MainWindow(QMainWindow):
             QMainWindow { background-color: #1e1e2e; }
             QWidget { background-color: #1e1e2e; color: #cdd6f4; }
             QSplitter::handle { background: #313244; }
-            QTabWidget::pane { border: 1px solid #313244; background: #1e1e2e; }
+            QSplitter::handle:vertical { height: 4px; }
+            QSplitter::handle:horizontal { width: 4px; }
+            
+            QTabWidget::pane { border: 1px solid #313244; background: #1e1e2e; border-radius: 4px; }
             QTabBar::tab {
-                background: #313244; color: #6c7086;
-                padding: 6px 16px; border: none;
-                font-family: monospace; font-size: 12px;
+                background: #181825; color: #6c7086;
+                padding: 8px 20px; border-top-left-radius: 4px; border-top-right-radius: 4px;
+                margin-right: 2px; font-family: 'Segoe UI', sans-serif; font-size: 13px;
             }
-            QTabBar::tab:selected { background: #45475a; color: #cdd6f4; }
-            QTabBar::tab:hover { background: #3d3d52; }
+            QTabBar::tab:selected { background: #313244; color: #cdd6f4; border-bottom: 2px solid #89b4fa; }
+            QTabBar::tab:hover { background: #2a2a3a; }
+            
             QToolBar {
-                background: #181825; border-bottom: 1px solid #313244;
-                spacing: 6px; padding: 4px;
+                background: #11111b; border-bottom: 1px solid #313244;
+                spacing: 8px; padding: 6px;
             }
-            QStatusBar { background: #181825; color: #6c7086; font-size: 11px; }
+            QStatusBar { background: #11111b; color: #a6adc8; font-size: 11px; border-top: 1px solid #313244; }
+            
             QComboBox {
                 background: #313244; color: #cdd6f4;
-                border: 1px solid #45475a; border-radius: 4px;
-                padding: 4px 8px; min-width: 150px;
+                border: 1px solid #45475a; border-radius: 6px;
+                padding: 4px 10px; min-width: 160px;
             }
             QComboBox::drop-down { border: none; }
+            
             QLineEdit {
                 background: #313244; color: #cdd6f4;
-                border: 1px solid #45475a; border-radius: 4px; padding: 4px 8px;
-                font-family: monospace;
+                border: 1px solid #45475a; border-radius: 6px; padding: 5px 10px;
+                font-family: 'JetBrains Mono', monospace;
             }
+            QLineEdit:focus { border: 1px solid #89b4fa; }
+            
             QPushButton {
-                background: #313244; color: #89b4fa;
-                border: 1px solid #45475a; border-radius: 4px;
-                padding: 5px 14px; font-weight: bold;
+                background: #313244; color: #cdd6f4;
+                border: 1px solid #45475a; border-radius: 6px;
+                padding: 6px 16px; font-weight: 600; font-size: 12px;
             }
-            QPushButton:hover { background: #45475a; }
-            QPushButton:disabled { color: #6c7086; border-color: #313244; }
-            QPushButton#startBtn { color: #a6e3a1; border-color: #a6e3a1; }
-            QPushButton#startBtn:hover { background: #1a2b1a; }
-            QPushButton#stopBtn { color: #f38ba8; border-color: #f38ba8; }
-            QPushButton#stopBtn:hover { background: #2d1515; }
+            QPushButton:hover { background: #45475a; border-color: #585b70; }
+            QPushButton:pressed { background: #585b70; }
+            QPushButton:disabled { color: #585b70; background: #181825; border-color: #313244; }
+            
+            QPushButton#startBtn { background: #2d3d3d; color: #a6e3a1; border-color: #a6e3a1; }
+            QPushButton#startBtn:hover { background: #3d4d4d; }
+            QPushButton#stopBtn { background: #3d2d2d; color: #f38ba8; border-color: #f38ba8; }
+            QPushButton#stopBtn:hover { background: #4d3d3d; }
+            
             QTextEdit {
                 background: #181825; color: #cdd6f4;
-                border: none; font-family: monospace; font-size: 11px;
+                border: 1px solid #313244; border-radius: 6px;
+                font-family: 'JetBrains Mono', monospace; font-size: 12px;
+                padding: 10px;
             }
+            
             QScrollBar:vertical {
-                background: #1e1e2e; width: 8px; border-radius: 4px;
+                background: #11111b; width: 10px; border-radius: 5px; margin: 2px;
             }
             QScrollBar::handle:vertical {
-                background: #45475a; border-radius: 4px; min-height: 20px;
+                background: #45475a; border-radius: 5px; min-height: 20px;
             }
-            QMessageBox { background: #1e1e2e; color: #cdd6f4; }
+            QScrollBar::handle:vertical:hover { background: #585b70; }
+            
+            QHeaderView::section {
+                background-color: #11111b; color: #89b4fa;
+                padding: 8px; border: none; border-bottom: 1px solid #313244;
+                font-weight: bold;
+            }
         """)
 
     def _build_ui(self):
@@ -187,15 +208,22 @@ class MainWindow(QMainWindow):
         packets_layout.setContentsMargins(0, 0, 0, 0)
         packets_layout.setSpacing(0)
 
+        # Create vertical splitter for table and detail panel
+        packet_splitter = QSplitter(Qt.Orientation.Vertical)
+
         self.packet_table = PacketTable()
         self.packet_table.packet_selected.connect(self._show_packet_detail)
-        packets_layout.addWidget(self.packet_table)
+        packet_splitter.addWidget(self.packet_table)
 
         self.detail_panel = QTextEdit()
         self.detail_panel.setReadOnly(True)
-        self.detail_panel.setMaximumHeight(180)
         self.detail_panel.setPlaceholderText("Click a packet to see full layer dissection...")
-        packets_layout.addWidget(self.detail_panel)
+        packet_splitter.addWidget(self.detail_panel)
+        
+        # Set initial sizes for the vertical splitter (70% table, 30% detail)
+        packet_splitter.setSizes([600, 300])
+
+        packets_layout.addWidget(packet_splitter)
 
         self.tabs.addTab(packets_widget, "📦 Packets")
 
@@ -246,17 +274,26 @@ class MainWindow(QMainWindow):
         self.stop_btn.setEnabled(False)
         toolbar.addWidget(self.stop_btn)
 
+        self.pause_btn = QPushButton("⏸ Pause")
+        self.pause_btn.clicked.connect(self.toggle_pause)
+        self.pause_btn.setEnabled(False)
+        toolbar.addWidget(self.pause_btn)
+
         toolbar.addSeparator()
 
         clear_btn = QPushButton("🗑 Clear")
         clear_btn.clicked.connect(self.clear_packets)
         toolbar.addWidget(clear_btn)
 
-        save_btn = QPushButton("💾 Save PCAP")
+        save_btn = QPushButton("💾 PCAP")
         save_btn.clicked.connect(self.save_pcap)
         toolbar.addWidget(save_btn)
 
-        load_btn = QPushButton("📂 Load PCAP")
+        export_btn = QPushButton("📄 Export")
+        export_btn.clicked.connect(self.export_packets)
+        toolbar.addWidget(export_btn)
+
+        load_btn = QPushButton("📂 Load")
         load_btn.clicked.connect(self.load_pcap)
         toolbar.addWidget(load_btn)
 
@@ -287,6 +324,7 @@ class MainWindow(QMainWindow):
 
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
+        self.pause_btn.setEnabled(True)
         self.status_state.setText("● Capturing")
         self.status_state.setStyleSheet("color: #a6e3a1; padding: 0 10px;")
 
@@ -297,8 +335,22 @@ class MainWindow(QMainWindow):
             self.worker = None
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
+        self.pause_btn.setEnabled(False)
+        self.paused = False
+        self.pause_btn.setText("⏸ Pause")
         self.status_state.setText("● Stopped")
         self.status_state.setStyleSheet("color: #f38ba8; padding: 0 10px;")
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+        if self.paused:
+            self.pause_btn.setText("▶ Resume")
+            self.status_state.setText("● Paused")
+            self.status_state.setStyleSheet("color: #f9e2af; padding: 0 10px;")
+        else:
+            self.pause_btn.setText("⏸ Pause")
+            self.status_state.setText("● Capturing")
+            self.status_state.setStyleSheet("color: #a6e3a1; padding: 0 10px;")
 
     def clear_packets(self):
         self.packet_table.clear_packets()
@@ -322,7 +374,42 @@ class MainWindow(QMainWindow):
                 wrpcap(path, raw_packets)
                 self.statusbar.showMessage(f"Saved {len(raw_packets)} packets → {path}", 4000)
             except Exception as e:
-                self.statusbar.showMessage(str(e), 4000)
+                self.statusbar.showMessage(f"Save failed: {e}", 4000)
+
+    def export_packets(self):
+        """Export packets to CSV or JSON."""
+        packets = self.packet_table.get_packets()
+        if not packets:
+            self.statusbar.showMessage("No packets to export", 3000)
+            return
+
+        path, filter = QFileDialog.getSaveFileName(
+            self, "Export Packets", "export", "JSON Files (*.json);;CSV Files (*.csv)"
+        )
+        if not path:
+            return
+
+        try:
+            if path.endswith(".json"):
+                import json
+                # Strip raw scapy object for JSON
+                export_data = []
+                for p in packets:
+                    d = p.copy()
+                    if "raw" in d: del d["raw"]
+                    export_data.append(d)
+                with open(path, "w") as f:
+                    json.dump(export_data, f, indent=4)
+            else:
+                import csv
+                keys = ["id", "time", "src", "dst", "proto", "length", "summary"]
+                with open(path, "w", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=keys, extrasaction='ignore')
+                    writer.writeheader()
+                    writer.writerows(packets)
+            self.statusbar.showMessage(f"Exported to {path}", 4000)
+        except Exception as e:
+            self.statusbar.showMessage(f"Export failed: {e}", 4000)
 
     def load_pcap(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -337,7 +424,8 @@ class MainWindow(QMainWindow):
 
     def _on_packet(self, packet_data):
         self.stats.record(packet_data)
-        self.packet_table.add_packet(packet_data)
+        if not self.paused:
+            self.packet_table.add_packet(packet_data)
         self.packet_count += 1
 
     def _on_credential(self, cred):

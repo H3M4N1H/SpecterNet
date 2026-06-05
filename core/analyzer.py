@@ -1,5 +1,9 @@
 import re
+import logging
+from utils.logger import get_logger
 from utils.helpers import SERVICE_PORTS
+
+logger = get_logger("Analyzer")
 
 
 def get_protocol(packet):
@@ -9,6 +13,10 @@ def get_protocol(packet):
         from scapy.layers.l2 import ARP
         from scapy.layers.http import HTTP, HTTPRequest, HTTPResponse
         from scapy.layers.dns import DNS
+        try:
+            from scapy.layers.tls.all import TLS
+        except ImportError:
+            TLS = None
 
         if packet.haslayer(ARP):
             return "ARP"
@@ -16,6 +24,9 @@ def get_protocol(packet):
             return "DNS"
         if packet.haslayer(HTTPRequest) or packet.haslayer(HTTPResponse):
             return "HTTP"
+        if TLS and packet.haslayer(TLS):
+            return "TLS"
+        
         if packet.haslayer(TCP):
             sport = packet[TCP].sport
             dport = packet[TCP].dport
@@ -23,6 +34,8 @@ def get_protocol(packet):
                 return "HTTPS"
             if sport == 21 or dport == 21:
                 return "FTP"
+            if sport == 22 or dport == 22:
+                return "SSH"
             if sport == 23 or dport == 23:
                 return "Telnet"
             if sport == 25 or dport == 25:
@@ -32,8 +45,8 @@ def get_protocol(packet):
             return "UDP"
         if packet.haslayer(ICMP):
             return "ICMP"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Protocol detection failed: {e}")
     return "OTHER"
 
 
@@ -43,26 +56,48 @@ def get_summary(packet):
         from scapy.layers.inet import TCP, UDP, IP
         from scapy.layers.http import HTTPRequest, HTTPResponse
         from scapy.layers.dns import DNS, DNSQR
+        try:
+            from scapy.layers.tls.handshake import TLSClientHello
+        except ImportError:
+            TLSClientHello = None
 
         if packet.haslayer(HTTPRequest):
             req = packet[HTTPRequest]
-            method = req.Method.decode() if req.Method else "?"
-            path = req.Path.decode() if req.Path else "/"
-            return f"{method} {path}"
+            method = req.Method.decode(errors='ignore') if req.Method else "?"
+            path = req.Path.decode(errors='ignore') if req.Path else "/"
+            host = req.Host.decode(errors='ignore') if hasattr(req, 'Host') and req.Host else ""
+            return f"{method} {host}{path}"
 
         if packet.haslayer(HTTPResponse):
             resp = packet[HTTPResponse]
-            code = resp.Status_Code.decode() if resp.Status_Code else "?"
+            code = resp.Status_Code.decode(errors='ignore') if resp.Status_Code else "?"
             return f"HTTP {code}"
 
         if packet.haslayer(DNS):
             dns = packet[DNS]
             if dns.qr == 0 and packet.haslayer(DNSQR):
-                return f"Query: {packet[DNSQR].qname.decode().rstrip('.')}"
+                qname = packet[DNSQR].qname.decode(errors='ignore').rstrip('.')
+                return f"DNS Query: {qname}"
             return "DNS Response"
+
+        if TLSClientHello and packet.haslayer(TLSClientHello):
+            hello = packet[TLSClientHello]
+            if hasattr(hello, 'extensions'):
+                from scapy.layers.tls.extensions import TLS_Ext_ServerName
+                for ext in hello.extensions:
+                    if isinstance(ext, TLS_Ext_ServerName):
+                        server_names = [sn.servername.decode(errors='ignore') for sn in ext.servernames]
+                        return f"TLS SNI: {', '.join(server_names)}"
+            return "TLS Client Hello"
 
         if packet.haslayer(TCP):
             tcp = packet[TCP]
+            # Detect SSH banner
+            if (tcp.sport == 22 or tcp.dport == 22) and packet.haslayer(__import__('scapy.packet', fromlist=['Raw']).Raw):
+                payload = packet[__import__('scapy.packet', fromlist=['Raw']).Raw].load
+                if payload.startswith(b"SSH-"):
+                    return f"SSH Banner: {payload.decode(errors='ignore').strip()}"
+            
             flags = []
             if tcp.flags & 0x02: flags.append("SYN")
             if tcp.flags & 0x10: flags.append("ACK")
@@ -75,9 +110,13 @@ def get_summary(packet):
             udp = packet[UDP]
             return f"UDP {udp.sport} → {udp.dport}"
 
+    except Exception as e:
+        logger.debug(f"Summary generation failed: {e}")
+    
+    try:
+        return packet.summary()[:80]
     except Exception:
-        pass
-    return packet.summary()[:80]
+        return "[Unknown Packet]"
 
 
 def get_src_dst(packet):
@@ -101,8 +140,8 @@ def get_src_dst(packet):
         if packet.haslayer(ARP):
             return packet[ARP].psrc, packet[ARP].pdst
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Source/Dest extraction failed: {e}")
     return "?", "?"
 
 
@@ -128,7 +167,7 @@ def sniff_credentials(packet):
         # HTTP POST credential sniffing
         if packet.haslayer(HTTPRequest):
             req = packet[HTTPRequest]
-            method = req.Method.decode() if req.Method else ""
+            method = req.Method.decode(errors='ignore') if req.Method else ""
             if method == "POST" and packet.haslayer(__import__('scapy.packet', fromlist=['Raw']).Raw):
                 payload = packet[__import__('scapy.packet', fromlist=['Raw']).Raw].load.decode('utf-8', errors='ignore')
                 # Common login field patterns
@@ -146,7 +185,7 @@ def sniff_credentials(packet):
                     creds.append(("HTTP", src_ip, cred_str))
 
         # FTP credential sniffing
-        if packet.haslayer(TCP) and packet[TCP].dport == 21:
+        if packet.haslayer(TCP) and (packet[TCP].dport == 21 or packet[TCP].sport == 21):
             from scapy.packet import Raw
             if packet.haslayer(Raw):
                 payload = packet[Raw].load.decode('utf-8', errors='ignore').strip()
@@ -156,7 +195,7 @@ def sniff_credentials(packet):
                     creds.append(("FTP", src_ip, f"PASSWORD: {payload[5:]}"))
 
         # Telnet sniffing (basic)
-        if packet.haslayer(TCP) and packet[TCP].dport == 23:
+        if packet.haslayer(TCP) and (packet[TCP].dport == 23 or packet[TCP].sport == 23):
             from scapy.packet import Raw
             if packet.haslayer(Raw):
                 payload = packet[Raw].load.decode('utf-8', errors='ignore').strip()
@@ -164,15 +203,15 @@ def sniff_credentials(packet):
                     creds.append(("Telnet", src_ip, f"DATA: {payload[:50]}"))
 
         # SMTP AUTH sniffing
-        if packet.haslayer(TCP) and packet[TCP].dport == 25:
+        if packet.haslayer(TCP) and (packet[TCP].dport == 25 or packet[TCP].sport == 25):
             from scapy.packet import Raw
             if packet.haslayer(Raw):
                 payload = packet[Raw].load.decode('utf-8', errors='ignore').strip()
-                if "AUTH" in payload or "MAIL FROM" in payload:
+                if any(x in payload.upper() for x in ["AUTH ", "MAIL FROM:", "RCPT TO:"]):
                     creds.append(("SMTP", src_ip, payload[:80]))
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Credential sniffing failed: {e}")
 
     return creds
 
@@ -195,6 +234,6 @@ def dissect_packet(packet):
                 fields[field] = str(val)
             layers.append((layer_name, fields))
             pkt = pkt.payload if pkt.payload and pkt.payload.__class__.__name__ != "NoPayload" else None
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Packet dissection failed: {e}")
     return layers

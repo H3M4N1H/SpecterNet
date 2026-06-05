@@ -36,9 +36,9 @@ class PacketTable(QTableWidget):
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
 
-        self.setColumnWidth(0, 60)
-        self.setColumnWidth(1, 100)
-        self.setColumnWidth(4, 70)
+        self.setColumnWidth(0, 50)
+        self.setColumnWidth(1, 90)
+        self.setColumnWidth(4, 90)
         self.setColumnWidth(5, 70)
 
         self.setStyleSheet("""

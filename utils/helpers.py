@@ -17,8 +17,10 @@ PROTO_COLORS = {
     "UDP": "#a6e3a1",
     "HTTP": "#fab387",
     "HTTPS": "#f5c2e7",
+    "TLS": "#f5c2e7",
     "DNS": "#cba6f7",
     "FTP": "#f9e2af",
+    "SSH": "#89dceb",
     "ICMP": "#94e2d5",
     "SMTP": "#f38ba8",
     "Telnet": "#f2cdcd",
@@ -99,11 +101,14 @@ def get_interfaces() -> list[str]:
             interfaces = [iface for iface in get_if_list() if iface]
             if interfaces:
                 return interfaces
-        except Exception:
-            pass
+        except Exception as e:
+            from utils.logger import get_logger
+            get_logger("Helpers").debug(f"get_if_list failed: {e}")
 
     try:
         return [name for _, name in socket.if_nameindex()]
-    except Exception:
+    except Exception as e:
+        from utils.logger import get_logger
+        get_logger("Helpers").debug(f"if_nameindex failed: {e}")
         return []
 

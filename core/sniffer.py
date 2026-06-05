@@ -108,8 +108,8 @@ class PacketSniffer:
                 if self.on_credential:
                     self.on_credential(cred)
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Error processing packet: {e}")
 
     def save_pcap(self, filepath):
         try:
