@@ -30,7 +30,7 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("SpecterNet")
-    app.setOrganizationName("Dreadonyx")
+    app.setOrganizationName("H3M4N1H")
 
     font = QFont("JetBrains Mono", 11)
     font.setStyleHint(QFont.StyleHint.Monospace)
