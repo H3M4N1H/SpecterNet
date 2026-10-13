@@ -10,7 +10,7 @@ A full-featured network sniffer and analysis suite with a PyQt6 GUI. Live packet
 
 ### Option 1: Development Install (Recommended)
 ```bash
-git clone https://github.com/Dreadonyx/SpecterNet.git
+git clone https://github.com/H3M4N1H/SpecterNet.git
 cd SpecterNet
 pip install -e .
 
