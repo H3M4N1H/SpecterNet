@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "specternet"
 version = "1.0.0"
 authors = [
-  { name="H3M4N1H", email="dreadonyx@example.com" },
+  { name="H3M4N1H", email="h3m4n1h@example.com" },
 ]
 description = "A full-featured network sniffer and analysis suite with a PyQt6 GUI."
 readme = "README.md"
